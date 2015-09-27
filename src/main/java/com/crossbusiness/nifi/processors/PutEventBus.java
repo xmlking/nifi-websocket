@@ -41,7 +41,7 @@ public class PutEventBus extends AbstractProcessor {
 
     public static final PropertyDescriptor OUTBOUND_ADDRESS  = new PropertyDescriptor.Builder()
             .name("outbound address")
-            .description("permitted matches for outbound traffic")
+            .description("address where outbound message will be sent")
             .required(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();

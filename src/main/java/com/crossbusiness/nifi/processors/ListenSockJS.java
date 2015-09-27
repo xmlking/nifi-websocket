@@ -2,6 +2,9 @@ package com.crossbusiness.nifi.processors;
 
 import com.crossbusiness.nifi.controllers.VertxServiceInterface;
 import io.vertx.core.Vertx;
+import io.vertx.core.eventbus.EventBus;
+import io.vertx.core.eventbus.MessageConsumer;
+import io.vertx.core.http.HttpServer;
 import io.vertx.ext.web.handler.sockjs.BridgeOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.sockjs.PermittedOptions;
@@ -53,18 +56,20 @@ public class ListenSockJS extends AbstractProcessor {
             .defaultValue("/eventbus/*")
             .build();
 
-    public static final PropertyDescriptor INBOUND_ADDRESS = new PropertyDescriptor.Builder()
-            .name("inbound address")
+    public static final PropertyDescriptor INBOUND_ADDRESS_REGEX = new PropertyDescriptor.Builder()
+            .name("inbound address regex")
             .description("permitted matches for inbound (client->server) traffic")
             .required(false)
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .defaultValue(".*")
+            .addValidator(StandardValidators.REGULAR_EXPRESSION_VALIDATOR)
             .build();
 
-    public static final PropertyDescriptor OUTBOUND_ADDRESS  = new PropertyDescriptor.Builder()
-            .name("outbound address")
+    public static final PropertyDescriptor OUTBOUND_ADDRESS_REGEX  = new PropertyDescriptor.Builder()
+            .name("outbound address regex")
             .description("permitted matches for outbound (server->client) traffic")
             .required(false)
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .defaultValue(".*")
+            .addValidator(StandardValidators.REGULAR_EXPRESSION_VALIDATOR)
             .build();
 
     public static final PropertyDescriptor MAX_DATA_RATE = new PropertyDescriptor.Builder()
@@ -85,8 +90,8 @@ public class ListenSockJS extends AbstractProcessor {
         final List<PropertyDescriptor> properties = new ArrayList<PropertyDescriptor>();
         properties.add(PORT);
         properties.add(CONTEXT_PATH);
-        properties.add(INBOUND_ADDRESS);
-        properties.add(OUTBOUND_ADDRESS);
+        properties.add(INBOUND_ADDRESS_REGEX);
+        properties.add(OUTBOUND_ADDRESS_REGEX);
         properties.add(MAX_DATA_RATE);
         properties.add(VERTX_SERVICE);
         this.properties = Collections.unmodifiableList(properties);
@@ -103,6 +108,8 @@ public class ListenSockJS extends AbstractProcessor {
     }
 
 
+    private MessageConsumer<String> consumer;
+    private HttpServer httpServer;
 
     private void createSockJSServer(final ProcessContext context) throws Exception {
 
@@ -118,28 +125,49 @@ public class ListenSockJS extends AbstractProcessor {
         SockJSHandler sockJSHandler = SockJSHandler.create(vertx);
 
         BridgeOptions options = new BridgeOptions();
-        if (context.getProperty(INBOUND_ADDRESS).isSet()) {
-            options.addInboundPermitted(new PermittedOptions().setAddress(context.getProperty(INBOUND_ADDRESS).getValue()));
+        if (context.getProperty(INBOUND_ADDRESS_REGEX).isSet()) {
+            options.addInboundPermitted(new PermittedOptions().setAddressRegex(context.getProperty(INBOUND_ADDRESS_REGEX).getValue()));
         }
-        if (context.getProperty(OUTBOUND_ADDRESS).isSet()) {
-            options.addOutboundPermitted(new PermittedOptions().setAddress(context.getProperty(OUTBOUND_ADDRESS).getValue()));
+        if (context.getProperty(OUTBOUND_ADDRESS_REGEX).isSet()) {
+            options.addOutboundPermitted(new PermittedOptions().setAddressRegex(context.getProperty(OUTBOUND_ADDRESS_REGEX).getValue()));
         }
 
         sockJSHandler.bridge(options);
 
         router.route(ContextPath).handler(sockJSHandler);
-        vertx.createHttpServer().requestHandler(router::accept).listen(port);
+        httpServer = vertx.createHttpServer().requestHandler(router::accept).listen(port);
     }
 
     @OnScheduled
     public void startServer(final ProcessContext context) throws Exception {
         createSockJSServer(context);
 
+        final VertxServiceInterface vertxService = context.getProperty(VERTX_SERVICE).asControllerService(VertxServiceInterface.class);
+        final EventBus eb = vertxService.getEventBus();
+        consumer = eb.consumer("draw");
+        consumer.handler(message -> {
+            System.out.println("I have received a message: " + message.body().toString());
+        });
+
     }
 
     @OnStopped
     public void shutdownSockJSServer() {
         //TODO
+        consumer.unregister(res -> {
+            if (res.succeeded()) {
+                System.out.println("The handler un-registration has reached all nodes");
+            } else {
+                System.out.println("Un-registration failed!");
+            }
+        });
+        httpServer.close(res -> {
+            if (res.succeeded()) {
+                System.out.println("Server Stopped");
+            } else {
+                System.out.println("Server stop failed!");
+            }
+        });
     }
 
     @Override
