@@ -6,6 +6,7 @@ import org.apache.nifi.annotation.behavior.EventDriven;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
 import org.apache.nifi.annotation.behavior.WritesAttributes;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
+import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
@@ -19,9 +20,10 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @EventDriven
+@SeeAlso(ListenSockJS.class)
 @Tags({"egress", "put", "websocket", "eventbus", "ws", "wss"})
 @WritesAttributes({
-        @WritesAttribute(attribute = "eventbus.topic", description = "The name of the eventbus Topic from which the message was received")
+        @WritesAttribute(attribute = "eventbus.topic", description = "The name of the eventbus's topic to which the message was sent")
 })
 @CapabilityDescription("sent FlowFile to eventbus")
 

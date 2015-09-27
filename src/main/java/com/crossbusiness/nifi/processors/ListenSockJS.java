@@ -6,6 +6,8 @@ import io.vertx.ext.web.handler.sockjs.BridgeOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.sockjs.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandler;
+import org.apache.nifi.annotation.behavior.WritesAttribute;
+import org.apache.nifi.annotation.behavior.WritesAttributes;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.documentation.Tags;
@@ -22,6 +24,9 @@ import java.util.*;
 
 @SeeAlso(PutEventBus.class)
 @Tags({"ingest", "websocket", "sockJS", "ws", "wss", "listen"})
+@WritesAttributes({
+        @WritesAttribute(attribute = "eventbus.topic", description = "The name of the eventbus's topic from which the message was received")
+})
 @CapabilityDescription("Starts an WebSocket Server that is used to receive FlowFiles from remote sources. The URL of the Service will be http://{hostname}:{port}/wsListener")
 public class ListenSockJS extends AbstractProcessor {
 
