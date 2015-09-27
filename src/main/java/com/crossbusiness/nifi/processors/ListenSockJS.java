@@ -1,6 +1,6 @@
 package com.crossbusiness.nifi.processors;
 
-import com.crossbusiness.nifi.controllers.VertxService;
+import com.crossbusiness.nifi.controllers.VertxServiceInterface;
 import io.vertx.core.Vertx;
 import io.vertx.ext.web.handler.sockjs.BridgeOptions;
 import io.vertx.ext.web.Router;
@@ -19,7 +19,7 @@ import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 
 import java.util.*;
-//ListenSockJS
+
 @SeeAlso(PutEventBus.class)
 @Tags({"ingest", "websocket", "sockJS", "ws", "wss", "listen"})
 @CapabilityDescription("Starts an WebSocket Server that is used to receive FlowFiles from remote sources. The URL of the Service will be http://{hostname}:{port}/wsListener")
@@ -71,7 +71,7 @@ public class ListenSockJS extends AbstractProcessor {
 
     public static final PropertyDescriptor VERTX_SERVICE = new PropertyDescriptor.Builder()
             .name("Vertx Service").description("The Controller Service that is used to obtain vert.x and eventBus instances")
-            .identifiesControllerService(VertxService.class).required(true).build();
+            .identifiesControllerService(VertxServiceInterface.class).required(true).build();
 
     @Override
     protected void init(final ProcessorInitializationContext context) {
@@ -102,9 +102,12 @@ public class ListenSockJS extends AbstractProcessor {
 
 
     private void createSockJSServer(final ProcessContext context) throws Exception {
+
+        final ProcessorLog logger = getLogger();
+
         final int port = context.getProperty(PORT).asInteger();
         final String ContextPath = context.getProperty(CONTEXT_PATH).getValue();
-        final VertxService vertxService = context.getProperty(VERTX_SERVICE).asControllerService(VertxService.class);
+        final VertxServiceInterface vertxService = context.getProperty(VERTX_SERVICE).asControllerService(VertxServiceInterface.class);
 
         Vertx vertx = vertxService.getVertx();
         Router router = Router.router(vertx);
@@ -149,32 +152,6 @@ public class ListenSockJS extends AbstractProcessor {
 
         // TODO implement
         session.transfer(outgoing, REL_SUCCESS);
-    }
-
-
-    public static class FlowFileEntryTimeWrapper {
-
-        private final Set<FlowFile> flowFiles;
-        private final long entryTime;
-        private final ProcessSession session;
-
-        public FlowFileEntryTimeWrapper(final ProcessSession session, final Set<FlowFile> flowFiles, final long entryTime) {
-            this.flowFiles = flowFiles;
-            this.entryTime = entryTime;
-            this.session = session;
-        }
-
-        public Set<FlowFile> getFlowFiles() {
-            return flowFiles;
-        }
-
-        public long getEntryTime() {
-            return entryTime;
-        }
-
-        public ProcessSession getSession() {
-            return session;
-        }
     }
 }
 

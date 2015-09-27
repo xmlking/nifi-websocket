@@ -11,7 +11,7 @@ import org.apache.nifi.reporting.InitializationException;
 
 @Tags({"vertx", "sockJS"})
 @CapabilityDescription("shared vertx, eventBus instances")
-public class VertxService extends AbstractControllerService {
+public class VertxService extends AbstractControllerService implements VertxServiceInterface {
 
     private volatile Vertx vertx = null;
     private volatile EventBus eventBus = null;

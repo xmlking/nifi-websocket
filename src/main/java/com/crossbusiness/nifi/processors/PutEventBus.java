@@ -1,6 +1,6 @@
 package com.crossbusiness.nifi.processors;
 
-import com.crossbusiness.nifi.controllers.VertxService;
+import com.crossbusiness.nifi.controllers.VertxServiceInterface;
 import io.vertx.core.eventbus.EventBus;
 import org.apache.nifi.annotation.behavior.EventDriven;
 import org.apache.nifi.annotation.behavior.WritesAttribute;
@@ -46,11 +46,11 @@ public class PutEventBus extends AbstractProcessor {
 
     public static final PropertyDescriptor VERTX_SERVICE = new PropertyDescriptor.Builder()
             .name("Vertx Service").description("The Controller Service that is used to obtain vert.x and eventBus instances")
-            .identifiesControllerService(VertxService.class).required(true).build();
+            .identifiesControllerService(VertxServiceInterface.class).required(true).build();
 
     @Override
     protected void init(final ProcessorInitializationContext context) {
-        //final VertxService vertxService = (VertxService) context.getControllerServiceLookup().getControllerService("vertx");
+        //final VertxService vertxService = (VertxService) context.getControllerServiceLookup().getControllerService("VertxService");
     }
 
     @Override
@@ -80,7 +80,7 @@ public class PutEventBus extends AbstractProcessor {
         final ProcessorLog logger = getLogger();
 
         final String outboundAddress = context.getProperty(OUTBOUND_ADDRESS).getValue();
-        final VertxService vertxService = context.getProperty(VERTX_SERVICE).asControllerService(VertxService.class);
+        final VertxServiceInterface vertxService = context.getProperty(VERTX_SERVICE).asControllerService(VertxServiceInterface.class);
 
         final EventBus eb = vertxService.getEventBus();
 
