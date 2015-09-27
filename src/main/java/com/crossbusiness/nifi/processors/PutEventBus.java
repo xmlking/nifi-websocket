@@ -48,14 +48,21 @@ public class PutEventBus extends AbstractProcessor {
             .name("Vertx Service").description("The Controller Service that is used to obtain vert.x and eventBus instances")
             .identifiesControllerService(VertxServiceInterface.class).required(true).build();
 
+    private EventBus eb;
+
     @Override
     protected void init(final ProcessorInitializationContext context) {
-        //final VertxService vertxService = (VertxService) context.getControllerServiceLookup().getControllerService("VertxService");
+        final VertxServiceInterface vertxService = (VertxServiceInterface) context.getControllerServiceLookup().getControllerService("VertxService");
+        if(vertxService != null) {
+            getLogger().debug("got vertxService");
+            eb = vertxService.getEventBus();
+        } else {
+            getLogger().error("no vertxService");
+        }
     }
 
     @Override
     public Set<Relationship> getRelationships() {
-        //return Collections.singleton(REL_SUCCESS);
         final Set<Relationship> relationships = new HashSet<>();
         relationships.add(REL_SUCCESS);
         relationships.add(REL_FAILURE);

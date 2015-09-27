@@ -75,9 +75,7 @@ public class ListenSockJS extends AbstractProcessor {
 
     @Override
     protected void init(final ProcessorInitializationContext context) {
-        final Set<Relationship> relationships = new HashSet<Relationship>();
-        relationships.add(REL_SUCCESS);
-        this.relationships = Collections.unmodifiableSet(relationships);
+        this.relationships = Collections.singleton(REL_SUCCESS);
 
         final List<PropertyDescriptor> properties = new ArrayList<PropertyDescriptor>();
         properties.add(PORT);
@@ -141,11 +139,6 @@ public class ListenSockJS extends AbstractProcessor {
 
     @Override
     public void onTrigger(final ProcessContext context, final ProcessSession session) throws ProcessException {
-        FlowFile incoming = session.get();
-        if ( incoming == null ) {
-            return;
-        }
-
         final ProcessorLog logger = getLogger();
 
         FlowFile outgoing = session.create();
