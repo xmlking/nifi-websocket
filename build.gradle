@@ -28,7 +28,6 @@ repositories {
 dependencies {
     compile 'org.apache.nifi:nifi-api:0.3.0'
     compile 'org.apache.nifi:nifi-processor-utils:0.3.0'
-    compile 'commons-io:commons-io:2.4'
 
     compile 'io.vertx:vertx-web:3.0.0'
     // nar 'org.apache.nifi:nifi-standard-services-api-nar:0.3.0'

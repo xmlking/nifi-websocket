@@ -12,5 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-com.crossbusiness.nifi.processors.ListenSockJS
-com.crossbusiness.nifi.processors.PutEventBus
+com.crossbusiness.nifi.processors.GetEventBus
+com.crossbusiness.nifi.processors.PublishEventBus
+com.crossbusiness.nifi.processors.SendEventBus
