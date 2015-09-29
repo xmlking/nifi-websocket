@@ -1,4 +1,4 @@
-# nifi-websocket
+# NiFi-WebSocket
 
 ```python
 Work-in-Progress
