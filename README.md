@@ -3,10 +3,10 @@
 ```python
 Work-in-Progress
 ```
-**VertxService** is a NiFi service that opens **WebSocket** port and bridge **EventBus**.  
-**GetEventBus** is a NiFi processor that subscribe to **EventBus's** address. all messages received on the address will be emitted into the flow.  
-**SendEventBus** is a NiFi processor that publish flowFile to **EventBus**. all subscribers on the address will receive flowFile. 
-**PublishEventBus** is a NiFi processor that sent flowFile to **EventBus**. only one recipient will receive flowFile. 
+1. **VertxService** is a NiFi service that opens **WebSocket** port and bridge **EventBus**.  
+2. **GetEventBus** is a NiFi processor that subscribe to **EventBus's** address. all messages received on the address will be emitted into the flow.  
+3. **SendEventBus** is a NiFi processor that publish flowFile to **EventBus**. all subscribers on the address will receive flowFile. 
+4. **PublishEventBus** is a NiFi processor that sent flowFile to **EventBus**. only one recipient will receive flowFile. 
 
 ### Install
 1. Manual: Download [Apache NiFi](https://nifi.apache.org/download.html) binaries and unpack to a folder. 
@@ -40,4 +40,4 @@ nifi stop
 
 1. check if SockJS server is up: http://hostname:port/eventbus/info
 2. test evenBus via web page: [test.html](./test.html)
-3. test with flow: [WebSocketFlow](./WebSocketFlow.xml)
+3. test with flow: [WebSocketFlow.xml](./WebSocketFlow.xml)
