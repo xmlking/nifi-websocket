@@ -1,8 +1,6 @@
 package com.crossbusiness.nifi.processors;
 
 import com.crossbusiness.nifi.controllers.VertxServiceInterface;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.json.JsonObject;
 import org.apache.nifi.annotation.behavior.EventDriven;
@@ -17,18 +15,20 @@ import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.io.InputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
-import org.apache.nifi.stream.io.BufferedInputStream;
-import org.apache.nifi.util.ObjectHolder;
+import org.apache.nifi.stream.io.StreamUtils;
+import org.apache.nifi.util.StopWatch;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 @EventDriven
 @SeeAlso(classNames = {"GetEventBus", "SendEventBus", "VertxService"})
 @Tags({"egress", "publish", "websocket", "ws", "wss",  "sockJS", "eventbus"})
 @WritesAttribute(attribute = "eventbus.address", description = "The name of the eventbus's address to which the flowFile was published")
-@CapabilityDescription("publish flowFile to eventbus. all subscribers on the address will receive flowFile")
+@CapabilityDescription("publish flowFile to evenBus (pub/sub). all subscribers on the address will receive flowFile")
 public class PublishEventBus extends AbstractProcessor {
 
     private Set<Relationship> relationships;
@@ -86,42 +86,42 @@ public class PublishEventBus extends AbstractProcessor {
         eventBus = vertxService.getEventBus();
     }
 
+    protected void put(final String address, final Object message) {
+        eventBus.publish(address,message);
+    }
+
     @Override
     public void onTrigger(ProcessContext context, ProcessSession session) throws ProcessException {
-        FlowFile incoming = session.get();
-        if ( incoming == null ) {
+        FlowFile flowFile = session.get();
+        if ( flowFile == null ) {
             return;
         }
 
         final String outboundAddress = context.getProperty(OUTBOUND_ADDRESS).getValue();
 
         try {
-            //final StopWatch stopWatch = new StopWatch(true);
+            final StopWatch stopWatch = new StopWatch(true);
 
-            // Parse the JSON document
-            final ObjectMapper mapper = new ObjectMapper();
-            final ObjectHolder<JsonNode> rootNodeRef = new ObjectHolder<>(null);
-            session.read(incoming, new InputStreamCallback() {
+            final byte[] buffer = new byte[(int) flowFile.getSize()];
+
+            session.read(flowFile, new InputStreamCallback() {
                 @Override
                 public void process(final InputStream in) throws IOException {
-                    try (final InputStream bufferedIn = new BufferedInputStream(in)) {
-                        rootNodeRef.set(mapper.readTree(bufferedIn));
-                    }
+                    StreamUtils.fillBuffer(in, buffer, false);
                 }
             });
-            final JsonNode rootNode = rootNodeRef.get();
+            // TODO detect flowFile MIME_TYPE and convert buffer into JSON, String or buffer
+            put(outboundAddress, new JsonObject(new String(buffer, StandardCharsets.UTF_8)));
 
-            eventBus.publish(outboundAddress,new JsonObject(rootNode.toString()));
-
-            //FlowFile outgoing = session.clone(incoming);
             final Map<String, String> attributes = new HashMap<>();
             attributes.put("eventbus.address", outboundAddress);
-            incoming = session.putAllAttributes(incoming, attributes);
-            //session.getProvenanceReporter().modifyContent(incoming, stopWatch.getElapsed(TimeUnit.MILLISECONDS));
-            session.transfer(incoming, REL_SUCCESS);
+            flowFile = session.putAllAttributes(flowFile, attributes);
+            session.getProvenanceReporter().receive(flowFile, outboundAddress, "sent message to eventBus", stopWatch.getElapsed(TimeUnit.MILLISECONDS));
+            getLogger().info("Successfully sent {} ({}) to EventBuss in {} millis", new Object[]{flowFile, flowFile.getSize(), stopWatch.getElapsed(TimeUnit.MILLISECONDS)});
+            session.transfer(flowFile, REL_SUCCESS);
         } catch (ProcessException pe) {
-            getLogger().error("Failed to parse {} as JSON due to {}; routing to failure", new Object[] {incoming, pe.toString()}, pe);
-            session.transfer(incoming, REL_FAILURE);
+            getLogger().error("Failed to send {} to EventBuss due to {}; routing to failure", new Object[] {flowFile, pe.toString()}, pe);
+            session.transfer(flowFile, REL_FAILURE);
         }
     }
 }

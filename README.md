@@ -3,10 +3,13 @@
 ```python
 Work-in-Progress
 ```
-1. **VertxService** is a NiFi service that opens **WebSocket** port and bridge **EventBus**.  
+The goal of this project is to enable *WebSocket* interface to NiFi so that, external clients can send data to a flow as well as NiFi can stream results back to clients like browsers.
+To simplify usage, [STOMP over WebSocket](http://jmesnil.net/stomp-websocket/doc/) protocol is used for client/server communication.   
+   
+1. **VertxService** is a NiFi service that opens **WebSocket** port and bridge the embedded [vertx's](http://vertx.io/) **EventBus**.  
 2. **GetEventBus** is a NiFi processor that subscribe to **EventBus's** address. all messages received on the address will be emitted into the flow.  
-3. **SendEventBus** is a NiFi processor that publish flowFile to **EventBus**. all subscribers on the address will receive flowFile. 
-4. **PublishEventBus** is a NiFi processor that sent flowFile to **EventBus**. only one recipient will receive flowFile. 
+3. **SendEventBus** is a NiFi processor that sends flowFile to **EventBus** address (point-to-point). only one recipient will receive flowFile.  
+4. **PublishEventBus** is a NiFi processor that publish flowFile to **EventBus** address (pub/sub). all subscribers on the address will receive flowFile. 
 
 ### Install
 1. Manual: Download [Apache NiFi](https://nifi.apache.org/download.html) binaries and unpack to a folder. 
@@ -38,6 +41,10 @@ nifi stop
 ```
 ### Test
 
-1. check if SockJS server is up: http://hostname:port/eventbus/info
+1. check if SockJS server is up: http://hostname:{port}/{eventbus}/info
 2. test evenBus via web page: [test.html](./test.html)
 3. test with flow: [WebSocketFlow.xml](./WebSocketFlow.xml)
+
+### TODO
+1. Try HazelcastClusterManager and Vertx.clusteredVertx to see if vertx clustering is possible with NiFi cluster. 
+2. Support ability to publish multiple types of messages. i.e., primitives, string, buffers, JSON

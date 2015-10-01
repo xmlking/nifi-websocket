@@ -20,6 +20,7 @@ import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.io.OutputStreamCallback;
 import org.apache.nifi.processor.util.StandardValidators;
+import org.apache.nifi.util.StopWatch;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -27,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 @EventDriven
 @SeeAlso(classNames = {"PublishEventBus", "SendEventBus", "VertxService"})
@@ -100,9 +102,9 @@ public class GetEventBus extends AbstractProcessor {
         if (consumer != null) {
             consumer.unregister(res -> {
                 if (res.succeeded()) {
-                    System.out.println("The handler un-registration has reached all nodes");
+                    getLogger().info("The GetEventBus({}) handler un-registration has reached all nodes",new Object[] {consumer.address()});
                 } else {
-                    System.out.println("Un-registration failed!");
+                    getLogger().info("GetEventBus({}) un-registration failed!",new Object[] {consumer.address()});
                 }
             });
         }
@@ -118,21 +120,33 @@ public class GetEventBus extends AbstractProcessor {
         }
 
         FlowFile flowFile = session.create();
-        flowFile = session.write(flowFile, new OutputStreamCallback() {
-            @Override
-            public void process(final OutputStream out) throws IOException {
-                out.write(message.body().encode().getBytes(StandardCharsets.UTF_8));
+        try {
+            final StopWatch stopWatch = new StopWatch(true);
+
+            flowFile = session.write(flowFile, new OutputStreamCallback() {
+                @Override
+                public void process(final OutputStream out) throws IOException {
+                    out.write(message.body().encode().getBytes(StandardCharsets.UTF_8));
+                }
+            });
+
+            if (flowFile.getSize() == 0L) {
+                session.remove(flowFile);
+            } else {
+                final Map<String, String> attributes = new HashMap<>();
+                attributes.put(CoreAttributes.MIME_TYPE.key(), "application/json");
+                attributes.put(CoreAttributes.FILENAME.key(), flowFile.getAttribute(CoreAttributes.FILENAME.key()) + ".json");
+                attributes.put("eventbus.address", message.address());
+                // attributes.putAll(message.headers());
+                flowFile = session.putAllAttributes(flowFile, attributes);
+                session.getProvenanceReporter().receive(flowFile, message.address(), "received eventBus message", stopWatch.getElapsed(TimeUnit.MILLISECONDS));
+                getLogger().info("Successfully received {} ({}) from EventBus in {} millis", new Object[]{flowFile, flowFile.getSize(), stopWatch.getElapsed(TimeUnit.MILLISECONDS)});
+                session.transfer(flowFile, REL_SUCCESS);
             }
-        });
-
-        final Map<String, String> attributes = new HashMap<>();
-        attributes.put(CoreAttributes.MIME_TYPE.key(), "application/json");
-        attributes.put(CoreAttributes.FILENAME.key(), flowFile.getAttribute(CoreAttributes.FILENAME.key()) + ".json");
-        attributes.put("eventbus.address", message.address());
-        flowFile = session.putAllAttributes(flowFile, attributes);
-
-        session.transfer(flowFile, REL_SUCCESS);
-        session.getProvenanceReporter().receive(flowFile, message.address());
+        } catch (Exception e) {
+            session.remove(flowFile);
+            throw e;
+        }
     }
 }
 
