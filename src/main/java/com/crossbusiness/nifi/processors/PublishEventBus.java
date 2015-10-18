@@ -48,6 +48,7 @@ public class PublishEventBus extends AbstractProcessor {
             .name("outbound address")
             .description("address where outbound message will be published")
             .required(true)
+            .expressionLanguageSupported(true)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
@@ -97,7 +98,7 @@ public class PublishEventBus extends AbstractProcessor {
             return;
         }
 
-        final String outboundAddress = context.getProperty(OUTBOUND_ADDRESS).getValue();
+        final String outboundAddress = context.getProperty(OUTBOUND_ADDRESS).evaluateAttributeExpressions(flowFile).getValue();
 
         try {
             final StopWatch stopWatch = new StopWatch(true);

@@ -29,7 +29,7 @@ dependencies {
     compile 'org.apache.nifi:nifi-api:0.3.0'
     compile 'org.apache.nifi:nifi-processor-utils:0.3.0'
 
-    compile 'io.vertx:vertx-web:3.0.0'
+    compile 'io.vertx:vertx-web:3.1.0'
     // nar 'org.apache.nifi:nifi-standard-services-api-nar:0.3.0'
 }
 
