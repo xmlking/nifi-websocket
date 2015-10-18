@@ -1,6 +1,7 @@
 package com.crossbusiness.nifi.processors;
 
 import com.crossbusiness.nifi.controllers.VertxServiceInterface;
+import io.vertx.core.MultiMap;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.MessageConsumer;
@@ -29,6 +30,8 @@ import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @EventDriven
 @SeeAlso(classNames = {"PublishEventBus", "SendEventBus", "VertxService"})
@@ -52,12 +55,20 @@ public class GetEventBus extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor HEADERS_AS_ATTRIBUTES_REGEX = new PropertyDescriptor.Builder()
+            .name("Message Headers to receive as Attributes (Regex)")
+            .description("Specifies the Regular Expression that determines the names of Message Headers that should be passed along as FlowFile attributes")
+            .addValidator(StandardValidators.REGULAR_EXPRESSION_VALIDATOR)
+            .required(false)
+            .build();
+
     public static final PropertyDescriptor VERTX_SERVICE = new PropertyDescriptor.Builder()
             .name("Vertx Service").description("The ControllerService that is used to obtain eventBus instance")
             .identifiesControllerService(VertxServiceInterface.class).required(true).build();
 
     private volatile MessageConsumer<JsonObject> consumer;
     private volatile BlockingQueue<Message<JsonObject>> messageQueue = new LinkedBlockingQueue<>(1000);
+    private volatile Pattern headerPattern;
 
     @Override
     protected void init(final ProcessorInitializationContext context) {
@@ -65,6 +76,7 @@ public class GetEventBus extends AbstractProcessor {
 
         final List<PropertyDescriptor> properties = new ArrayList<PropertyDescriptor>();
         properties.add(INBOUND_ADDRESS);
+        properties.add(HEADERS_AS_ATTRIBUTES_REGEX);
         properties.add(VERTX_SERVICE);
         this.properties = Collections.unmodifiableList(properties);
     }
@@ -89,6 +101,9 @@ public class GetEventBus extends AbstractProcessor {
     public void setup(final ProcessContext context) throws Exception {
         final VertxServiceInterface vertxService = context.getProperty(VERTX_SERVICE).asControllerService(VertxServiceInterface.class);
         final String inboundAddress = context.getProperty(INBOUND_ADDRESS).getValue();
+        if (context.getProperty(HEADERS_AS_ATTRIBUTES_REGEX).isSet()) {
+            headerPattern = Pattern.compile(context.getProperty(HEADERS_AS_ATTRIBUTES_REGEX).getValue());
+        }
         final EventBus eventBus = vertxService.getEventBus();
         consumer = eventBus.consumer(inboundAddress);
         consumer.handler(message -> {
@@ -134,10 +149,25 @@ public class GetEventBus extends AbstractProcessor {
                 session.remove(flowFile);
             } else {
                 final Map<String, String> attributes = new HashMap<>();
+
+                if (headerPattern != null) {
+                    MultiMap headers = message.headers();
+                    headers.names()
+                            .stream()
+                            .filter(headerName -> headerPattern.matcher(headerName).matches())
+                            .forEach(headerName -> attributes.put(headerName, headers.get(headerName)));
+
+//                    attributes.putAll(
+//                        headers.entries()
+//                                .stream()
+//                                .filter(entry -> headerPattern.matcher(entry.getKey()).matches())
+//                                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+//                    );
+                }
                 attributes.put(CoreAttributes.MIME_TYPE.key(), "application/json");
                 attributes.put(CoreAttributes.FILENAME.key(), flowFile.getAttribute(CoreAttributes.FILENAME.key()) + ".json");
                 attributes.put("eventbus.address", message.address());
-                // attributes.putAll(message.headers());
+
                 flowFile = session.putAllAttributes(flowFile, attributes);
                 session.getProvenanceReporter().receive(flowFile, message.address(), "received eventBus message", stopWatch.getElapsed(TimeUnit.MILLISECONDS));
                 getLogger().info("Successfully received {} ({}) from EventBus in {} millis", new Object[]{flowFile, flowFile.getSize(), stopWatch.getElapsed(TimeUnit.MILLISECONDS)});

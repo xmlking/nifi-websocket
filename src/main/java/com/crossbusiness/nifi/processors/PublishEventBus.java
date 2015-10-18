@@ -1,6 +1,7 @@
 package com.crossbusiness.nifi.processors;
 
 import com.crossbusiness.nifi.controllers.VertxServiceInterface;
+import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.json.JsonObject;
 import org.apache.nifi.annotation.behavior.EventDriven;
@@ -23,6 +24,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 @EventDriven
 @SeeAlso(classNames = {"GetEventBus", "SendEventBus", "VertxService"})
@@ -52,11 +54,19 @@ public class PublishEventBus extends AbstractProcessor {
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
 
+    public static final PropertyDescriptor ATTRIBUTES_AS_HEADERS_REGEX = new PropertyDescriptor.Builder()
+            .name("FlowFile attributes to receive as message headers (Regex)")
+            .description("Specifies the Regular Expression that determines the names of FlowFile attributes that should be passed along as Message Headers")
+            .addValidator(StandardValidators.REGULAR_EXPRESSION_VALIDATOR)
+            .required(false)
+            .build();
+
     public static final PropertyDescriptor VERTX_SERVICE = new PropertyDescriptor.Builder()
             .name("Vertx Service").description("The ControllerService that is used to obtain eventBus instance")
             .identifiesControllerService(VertxServiceInterface.class).required(true).build();
 
     protected volatile EventBus eventBus;
+    protected volatile Pattern attributePattern;
 
     @Override
     public Set<Relationship> getRelationships() {
@@ -77,6 +87,7 @@ public class PublishEventBus extends AbstractProcessor {
 
         final List<PropertyDescriptor> properties = new ArrayList<PropertyDescriptor>();
         properties.add(OUTBOUND_ADDRESS);
+        properties.add(ATTRIBUTES_AS_HEADERS_REGEX);
         properties.add(VERTX_SERVICE);
         this.properties = Collections.unmodifiableList(properties);
     }
@@ -85,10 +96,17 @@ public class PublishEventBus extends AbstractProcessor {
     public void setup(final ProcessContext context) {
         final VertxServiceInterface vertxService = context.getProperty(VERTX_SERVICE).asControllerService(VertxServiceInterface.class);
         eventBus = vertxService.getEventBus();
+        if (context.getProperty(ATTRIBUTES_AS_HEADERS_REGEX).isSet()) {
+            attributePattern = Pattern.compile(context.getProperty(ATTRIBUTES_AS_HEADERS_REGEX).getValue());
+        }
     }
 
     protected void put(final String address, final Object message) {
         eventBus.publish(address,message);
+    }
+
+    protected void put(final String address, final Object message, final DeliveryOptions options) {
+        eventBus.publish(address,message,options);
     }
 
     @Override
@@ -111,8 +129,21 @@ public class PublishEventBus extends AbstractProcessor {
                     StreamUtils.fillBuffer(in, buffer, false);
                 }
             });
+
             // TODO detect flowFile MIME_TYPE and convert buffer into JSON, String or buffer
-            put(outboundAddress, new JsonObject(new String(buffer, StandardCharsets.UTF_8)));
+            JsonObject message = new JsonObject(new String(buffer, StandardCharsets.UTF_8));
+
+            if(attributePattern != null) {
+                DeliveryOptions options = new DeliveryOptions();
+                for(String attributeName : flowFile.getAttributes().keySet()) {
+                    if (attributePattern != null && attributePattern.matcher(attributeName).matches()) {
+                        options.addHeader(attributeName, flowFile.getAttribute(attributeName));
+                    }
+                }
+                put(outboundAddress, message, options);
+            } else {
+                put(outboundAddress, message);
+            }
 
             final Map<String, String> attributes = new HashMap<>();
             attributes.put("eventbus.address", outboundAddress);
